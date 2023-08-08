@@ -3,7 +3,7 @@ import tempfile
 import base64
 import streamlit as st
 from audio_recorder_streamlit import audio_recorder
-from elevenlabs import generate, set_api_key, play, save
+from elevenlabs import generate, set_api_key, save
 from dotenv import load_dotenv
 import openai
 
@@ -29,43 +29,44 @@ def autoplay_audio(audio_data: bytes, format: str):
         unsafe_allow_html=True,
     )
 
+# Initialize session state if it doesn't exist
+if 'transcription' not in st.session_state:
+    st.session_state.transcription = ""
+if 'response' not in st.session_state:
+    st.session_state.response = ""
+
 # Record audio
 st.write("Record a 15-second audio sample:")
 audio_bytes = audio_recorder()
 
-if audio_bytes:
-    # Play the recorded audio
-    autoplay_audio(audio_bytes, 'wav')
- 
-    # Write bytes to a temporary file
+def generate_response():
+    # Transcribe the recorded audio using Whisper API
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
 
-    with st.spinner('Transcribing audio...'):
-        # Transcribe the recorded audio using Whisper API
-        with open(tmp_path, "rb") as audio_file:
-            transcription_output = openai.Audio.transcribe("whisper-1", audio_file)
+        with st.spinner('Transcribing audio...'):
+            with open(tmp_path, "rb") as audio_file:
+                transcription_output = openai.Audio.transcribe("whisper-1", audio_file)
 
-        # Display the transcription
-        st.write(f"Transcription: {transcription_output['text']}")
+        # Display the transcription and store it in session state
+        st.session_state.transcription = transcription_output['text']
+        st.write(f"Transcription: {st.session_state.transcription}")
 
-    with st.spinner('Generating response...'):
-        # Generate response from OpenAI GPT-3.5
-        completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": transcription_output['text']}
-            ]
-        )
+        with st.spinner('One Moment Thinking...'):
+            # Generate response from OpenAI GPT-3.5
+            completion = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": st.session_state.transcription}
+                ]
+            )
+            st.session_state.response = completion.choices[0].message['content']
 
-        # Display GPT-3.5's response
-
-    with st.spinner('Generating audio...'):
         # Generate audio from the GPT-3.5 response using Elevenlabs' generate function
         audio_data = generate(
-            text=completion.choices[0].message['content'],
+            text=st.session_state.response,
             voice="Bella",
             model="eleven_monolingual_v1"
         )
@@ -78,10 +79,10 @@ if audio_bytes:
         save(audio_data, filename)
 
         # Display a message and a download link
-        st.write(f"{completion.choices[0].message['content']}")
-       
+        st.write(f"{st.session_state.response}")
 
-    # Remove the temporary file
-    os.remove(tmp_path)
-    
-    st.text('Refresh Page to record again')
+        # Remove the temporary file
+        os.remove(tmp_path)
+
+if st.button("Submit", on_click=generate_response):
+    st.text('Ask another question')
