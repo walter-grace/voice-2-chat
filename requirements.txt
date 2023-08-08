@@ -1,0 +1,5 @@
+streamlit
+audio_recorder_streamlit
+elevenlabs
+python-dotenv
+openai
