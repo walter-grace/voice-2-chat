@@ -16,7 +16,7 @@ set_api_key(os.getenv("ELEVENLABS_API_KEY"))
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Title of the web app
-st.title('Chat and Audio Transcription and Playback')
+st.title('Basic Assistant')
 
 def autoplay_audio(audio_data: bytes, format: str):
     b64 = base64.b64encode(audio_data).decode()
